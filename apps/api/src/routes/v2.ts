@@ -95,6 +95,10 @@ import {
   slackOAuthStartController,
   slackStatusController,
 } from "../controllers/v2/slack";
+import {
+  ingestMcpActionLogController,
+  listMcpActionLogsController,
+} from "../controllers/v2/mcp-action-logs";
 
 export const v2Router = express.Router();
 expressWs(express()).applyTo(v2Router);
@@ -159,6 +163,17 @@ v2Router.use(requestTimingMiddleware("v2"));
 // Internal: trusted-proxy (hosted MCP) keyless eligibility probe. Secret-gated
 // inside the controller; no auth middleware.
 v2Router.get("/keyless/eligibility", wrap(keylessEligibilityController));
+
+v2Router.post(
+  "/mcp/action-logs",
+  express.json({ limit: "64kb" }),
+  wrap(ingestMcpActionLogController as any),
+);
+v2Router.get(
+  "/mcp/action-logs",
+  authMiddleware(RateLimiterMode.Account),
+  wrap(listMcpActionLogsController),
+);
 
 v2Router.post(
   "/search",
