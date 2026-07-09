@@ -16,6 +16,9 @@ create table if not exists public.mcp_action_logs (
   created_at timestamptz not null default now(),
   constraint mcp_action_logs_no_raw_secrets check (
     auth_type not like '%Bearer%' and tool_name not like '%fc-%'
+  ),
+  constraint mcp_action_logs_resource_metadata_safe check (
+    resource is null or (char_length(resource) <= 512 and resource !~ '[[:cntrl:]]')
   )
 );
 

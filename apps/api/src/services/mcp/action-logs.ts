@@ -4,6 +4,25 @@ import * as schema from "../../db/schema";
 export const MCP_ACTION_LOG_STATUSES = ["started", "success", "error"] as const;
 export type McpActionLogStatus = (typeof MCP_ACTION_LOG_STATUSES)[number];
 
+const MAX_MCP_ACTION_LOG_RESOURCE_LENGTH = 512;
+
+function normalizeOptionalMetadataString(
+  value: unknown,
+  fieldName: string,
+  maxLength = MAX_MCP_ACTION_LOG_RESOURCE_LENGTH,
+): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim();
+  if (!normalized) return null;
+  if (normalized.length > maxLength) {
+    throw new Error(`${fieldName} must be at most ${maxLength} characters`);
+  }
+  if (/[\u0000-\u001F\u007F]/.test(normalized)) {
+    throw new Error(`${fieldName} must not contain control characters`);
+  }
+  return normalized;
+}
+
 export type McpActionLogInput = {
   team_id: string;
   user_id?: string | null;
@@ -86,7 +105,7 @@ export function normalizeMcpActionLogInput(
         : null,
     error_class:
       typeof payload.error_class === "string" ? payload.error_class : null,
-    resource: typeof payload.resource === "string" ? payload.resource : null,
+    resource: normalizeOptionalMetadataString(payload.resource, "resource"),
   };
 }
 

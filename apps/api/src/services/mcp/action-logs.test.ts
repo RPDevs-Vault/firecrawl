@@ -94,4 +94,26 @@ describe("MCP action logs", () => {
       }),
     );
   });
+
+  it("bounds resource metadata", () => {
+    expect(() =>
+      normalizeMcpActionLogInput({
+        team_id: "00000000-0000-4000-8000-000000000001",
+        auth_type: "oauth",
+        tool_name: "firecrawl_scrape",
+        status: "started",
+        resource: "x".repeat(513),
+      }),
+    ).toThrow("resource must be at most 512 characters");
+
+    expect(() =>
+      normalizeMcpActionLogInput({
+        team_id: "00000000-0000-4000-8000-000000000001",
+        auth_type: "oauth",
+        tool_name: "firecrawl_scrape",
+        status: "started",
+        resource: "https://mcp.firecrawl.dev/v2/mcp\nspoofed",
+      }),
+    ).toThrow("resource must not contain control characters");
+  });
 });
