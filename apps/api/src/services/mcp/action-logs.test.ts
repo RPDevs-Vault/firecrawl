@@ -135,5 +135,24 @@ describe("MCP action logs", () => {
         client_name: "x".repeat(129),
       }),
     ).toThrow("client_name must be at most 128 characters");
+
+    expect(() =>
+      normalizeMcpActionLogInput({
+        team_id: "00000000-0000-4000-8000-000000000001",
+        auth_type: "oauth",
+        tool_name: "x".repeat(129),
+        status: "started",
+      }),
+    ).toThrow("tool_name must be at most 128 characters");
+
+    expect(() =>
+      normalizeMcpActionLogInput({
+        team_id: "00000000-0000-4000-8000-000000000001",
+        auth_type: "oauth",
+        tool_name: "firecrawl_scrape",
+        status: "started",
+        oauth_client_id: "Bearer fco_secret_token",
+      }),
+    ).toThrow("oauth_client_id must not contain secret-like values");
   });
 });

@@ -15,9 +15,11 @@ create table if not exists public.mcp_action_logs (
   resource text null,
   created_at timestamptz not null default now(),
   constraint mcp_action_logs_no_raw_secrets check (
-    auth_type not like '%Bearer%' and tool_name not like '%fc-%'
+    auth_type not like '%Bearer%'
   ),
   constraint mcp_action_logs_metadata_safe check (
+    char_length(tool_name) <= 128 and tool_name !~ '[[:cntrl:]]' and tool_name !~* '(Bearer\s+[^[:space:]]+|fc-[A-Za-z0-9_-]+|fco_[A-Za-z0-9_-]+|fcr_[A-Za-z0-9_-]+)' and
+    (oauth_client_id is null or (char_length(oauth_client_id) <= 128 and oauth_client_id !~ '[[:cntrl:]]' and oauth_client_id !~* '(Bearer\s+[^[:space:]]+|fc-[A-Za-z0-9_-]+|fco_[A-Za-z0-9_-]+|fcr_[A-Za-z0-9_-]+)')) and
     (request_id is null or (char_length(request_id) <= 256 and request_id !~ '[[:cntrl:]]' and request_id !~* '(Bearer\s+[^[:space:]]+|fc-[A-Za-z0-9_-]+|fco_[A-Za-z0-9_-]+|fcr_[A-Za-z0-9_-]+)')) and
     (user_agent is null or (char_length(user_agent) <= 512 and user_agent !~ '[[:cntrl:]]' and user_agent !~* '(Bearer\s+[^[:space:]]+|fc-[A-Za-z0-9_-]+|fco_[A-Za-z0-9_-]+|fcr_[A-Za-z0-9_-]+)')) and
     (client_name is null or (char_length(client_name) <= 128 and client_name !~ '[[:cntrl:]]' and client_name !~* '(Bearer\s+[^[:space:]]+|fc-[A-Za-z0-9_-]+|fco_[A-Za-z0-9_-]+|fcr_[A-Za-z0-9_-]+)')) and

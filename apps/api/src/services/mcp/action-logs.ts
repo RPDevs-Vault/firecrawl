@@ -5,6 +5,8 @@ export const MCP_ACTION_LOG_STATUSES = ["started", "success", "error"] as const;
 export type McpActionLogStatus = (typeof MCP_ACTION_LOG_STATUSES)[number];
 
 const MCP_ACTION_LOG_FIELD_LIMITS = {
+  oauth_client_id: 128,
+  tool_name: 128,
   request_id: 256,
   user_agent: 512,
   client_name: 128,
@@ -16,7 +18,7 @@ const MCP_ACTION_LOG_FIELD_LIMITS = {
 const SECRET_LIKE_METADATA_PATTERN =
   /(?:\bBearer\s+[^\s]+|\bfc-[A-Za-z0-9_-]+|\bfco_[A-Za-z0-9_-]+|\bfcr_[A-Za-z0-9_-]+)/i;
 
-function normalizeOptionalMetadataString(
+function normalizeMetadataString(
   value: unknown,
   fieldName: keyof typeof MCP_ACTION_LOG_FIELD_LIMITS,
 ): string | null {
@@ -33,6 +35,22 @@ function normalizeOptionalMetadataString(
   if (SECRET_LIKE_METADATA_PATTERN.test(normalized)) {
     throw new Error(`${fieldName} must not contain secret-like values`);
   }
+  return normalized;
+}
+
+function normalizeOptionalMetadataString(
+  value: unknown,
+  fieldName: keyof typeof MCP_ACTION_LOG_FIELD_LIMITS,
+): string | null {
+  return normalizeMetadataString(value, fieldName);
+}
+
+function normalizeRequiredMetadataString(
+  value: unknown,
+  fieldName: keyof typeof MCP_ACTION_LOG_FIELD_LIMITS,
+): string {
+  const normalized = normalizeMetadataString(value, fieldName);
+  if (!normalized) throw new Error(`${fieldName} is required`);
   return normalized;
 }
 
@@ -80,11 +98,9 @@ export function normalizeMcpActionLogInput(
 ): McpActionLogInput {
   assertSafeMcpActionLogPayload(payload);
   const teamId = typeof payload.team_id === "string" ? payload.team_id : "";
-  const toolName =
-    typeof payload.tool_name === "string" ? payload.tool_name : "";
+  const toolName = normalizeRequiredMetadataString(payload.tool_name, "tool_name");
   const status = payload.status;
   if (!teamId) throw new Error("team_id is required");
-  if (!toolName) throw new Error("tool_name is required");
   if (!MCP_ACTION_LOG_STATUSES.includes(status as McpActionLogStatus)) {
     throw new Error("status must be started, success, or error");
   }
@@ -94,10 +110,10 @@ export function normalizeMcpActionLogInput(
     user_id: typeof payload.user_id === "string" ? payload.user_id : null,
     api_key_id:
       typeof payload.api_key_id === "number" ? payload.api_key_id : null,
-    oauth_client_id:
-      typeof payload.oauth_client_id === "string"
-        ? payload.oauth_client_id
-        : null,
+    oauth_client_id: normalizeOptionalMetadataString(
+      payload.oauth_client_id,
+      "oauth_client_id",
+    ),
     auth_type:
       payload.auth_type === "oauth" ||
       payload.auth_type === "api-key" ||
