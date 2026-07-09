@@ -95,7 +95,7 @@ describe("MCP action logs", () => {
     );
   });
 
-  it("bounds resource metadata", () => {
+  it("bounds and sanitizes metadata fields", () => {
     expect(() =>
       normalizeMcpActionLogInput({
         team_id: "00000000-0000-4000-8000-000000000001",
@@ -115,5 +115,25 @@ describe("MCP action logs", () => {
         resource: "https://mcp.firecrawl.dev/v2/mcp\nspoofed",
       }),
     ).toThrow("resource must not contain control characters");
+
+    expect(() =>
+      normalizeMcpActionLogInput({
+        team_id: "00000000-0000-4000-8000-000000000001",
+        auth_type: "oauth",
+        tool_name: "firecrawl_scrape",
+        status: "started",
+        user_agent: "Bearer fco_secret_token",
+      }),
+    ).toThrow("user_agent must not contain secret-like values");
+
+    expect(() =>
+      normalizeMcpActionLogInput({
+        team_id: "00000000-0000-4000-8000-000000000001",
+        auth_type: "oauth",
+        tool_name: "firecrawl_scrape",
+        status: "started",
+        client_name: "x".repeat(129),
+      }),
+    ).toThrow("client_name must be at most 128 characters");
   });
 });

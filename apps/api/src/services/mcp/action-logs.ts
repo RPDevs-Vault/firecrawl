@@ -4,21 +4,34 @@ import * as schema from "../../db/schema";
 export const MCP_ACTION_LOG_STATUSES = ["started", "success", "error"] as const;
 export type McpActionLogStatus = (typeof MCP_ACTION_LOG_STATUSES)[number];
 
-const MAX_MCP_ACTION_LOG_RESOURCE_LENGTH = 512;
+const MCP_ACTION_LOG_FIELD_LIMITS = {
+  request_id: 256,
+  user_agent: 512,
+  client_name: 128,
+  client_version: 128,
+  error_class: 128,
+  resource: 512,
+} as const;
+
+const SECRET_LIKE_METADATA_PATTERN =
+  /(?:\bBearer\s+[^\s]+|\bfc-[A-Za-z0-9_-]+|\bfco_[A-Za-z0-9_-]+|\bfcr_[A-Za-z0-9_-]+)/i;
 
 function normalizeOptionalMetadataString(
   value: unknown,
-  fieldName: string,
-  maxLength = MAX_MCP_ACTION_LOG_RESOURCE_LENGTH,
+  fieldName: keyof typeof MCP_ACTION_LOG_FIELD_LIMITS,
 ): string | null {
   if (typeof value !== "string") return null;
   const normalized = value.trim();
   if (!normalized) return null;
+  const maxLength = MCP_ACTION_LOG_FIELD_LIMITS[fieldName];
   if (normalized.length > maxLength) {
     throw new Error(`${fieldName} must be at most ${maxLength} characters`);
   }
   if (/[\u0000-\u001F\u007F]/.test(normalized)) {
     throw new Error(`${fieldName} must not contain control characters`);
+  }
+  if (SECRET_LIKE_METADATA_PATTERN.test(normalized)) {
+    throw new Error(`${fieldName} must not contain secret-like values`);
   }
   return normalized;
 }
@@ -93,18 +106,26 @@ export function normalizeMcpActionLogInput(
         : "unknown",
     tool_name: toolName,
     status: status as McpActionLogStatus,
-    request_id:
-      typeof payload.request_id === "string" ? payload.request_id : null,
-    user_agent:
-      typeof payload.user_agent === "string" ? payload.user_agent : null,
-    client_name:
-      typeof payload.client_name === "string" ? payload.client_name : null,
-    client_version:
-      typeof payload.client_version === "string"
-        ? payload.client_version
-        : null,
-    error_class:
-      typeof payload.error_class === "string" ? payload.error_class : null,
+    request_id: normalizeOptionalMetadataString(
+      payload.request_id,
+      "request_id",
+    ),
+    user_agent: normalizeOptionalMetadataString(
+      payload.user_agent,
+      "user_agent",
+    ),
+    client_name: normalizeOptionalMetadataString(
+      payload.client_name,
+      "client_name",
+    ),
+    client_version: normalizeOptionalMetadataString(
+      payload.client_version,
+      "client_version",
+    ),
+    error_class: normalizeOptionalMetadataString(
+      payload.error_class,
+      "error_class",
+    ),
     resource: normalizeOptionalMetadataString(payload.resource, "resource"),
   };
 }

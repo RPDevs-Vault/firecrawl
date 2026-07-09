@@ -17,8 +17,13 @@ create table if not exists public.mcp_action_logs (
   constraint mcp_action_logs_no_raw_secrets check (
     auth_type not like '%Bearer%' and tool_name not like '%fc-%'
   ),
-  constraint mcp_action_logs_resource_metadata_safe check (
-    resource is null or (char_length(resource) <= 512 and resource !~ '[[:cntrl:]]')
+  constraint mcp_action_logs_metadata_safe check (
+    (request_id is null or (char_length(request_id) <= 256 and request_id !~ '[[:cntrl:]]' and request_id !~* '(Bearer\s+[^[:space:]]+|fc-[A-Za-z0-9_-]+|fco_[A-Za-z0-9_-]+|fcr_[A-Za-z0-9_-]+)')) and
+    (user_agent is null or (char_length(user_agent) <= 512 and user_agent !~ '[[:cntrl:]]' and user_agent !~* '(Bearer\s+[^[:space:]]+|fc-[A-Za-z0-9_-]+|fco_[A-Za-z0-9_-]+|fcr_[A-Za-z0-9_-]+)')) and
+    (client_name is null or (char_length(client_name) <= 128 and client_name !~ '[[:cntrl:]]' and client_name !~* '(Bearer\s+[^[:space:]]+|fc-[A-Za-z0-9_-]+|fco_[A-Za-z0-9_-]+|fcr_[A-Za-z0-9_-]+)')) and
+    (client_version is null or (char_length(client_version) <= 128 and client_version !~ '[[:cntrl:]]' and client_version !~* '(Bearer\s+[^[:space:]]+|fc-[A-Za-z0-9_-]+|fco_[A-Za-z0-9_-]+|fcr_[A-Za-z0-9_-]+)')) and
+    (error_class is null or (char_length(error_class) <= 128 and error_class !~ '[[:cntrl:]]' and error_class !~* '(Bearer\s+[^[:space:]]+|fc-[A-Za-z0-9_-]+|fco_[A-Za-z0-9_-]+|fcr_[A-Za-z0-9_-]+)')) and
+    (resource is null or (char_length(resource) <= 512 and resource !~ '[[:cntrl:]]' and resource !~* '(Bearer\s+[^[:space:]]+|fc-[A-Za-z0-9_-]+|fco_[A-Za-z0-9_-]+|fcr_[A-Za-z0-9_-]+)'))
   )
 );
 
