@@ -3,6 +3,20 @@ import express, { NextFunction, Request, Response } from "express";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { config } from "../../config";
+
+const { redisConstructor } = vi.hoisted(() => ({
+  redisConstructor: vi.fn(() => {
+    throw new Error(
+      "MCP action-log HTTP tests must not construct a Redis client",
+    );
+  }),
+}));
+
+vi.mock("ioredis", () => ({
+  default: redisConstructor,
+  Redis: redisConstructor,
+}));
+
 import {
   createMcpActionLogRateLimitMiddleware,
   registerMcpActionLogIngestRoute,
@@ -73,11 +87,15 @@ describe("MCP action log HTTP ingest", () => {
     dbMock.values.length = 0;
   });
 
-  it("uses a timing-safe shared secret compare", () => {
+  it("uses a timing-safe shared secret compare and registers without Redis", () => {
     expect(timingSafeSecretEqual("test-secret", "test-secret")).toBe(true);
     expect(timingSafeSecretEqual("test-secret", "other-secret")).toBe(false);
     expect(timingSafeSecretEqual("short", "much-longer-secret")).toBe(false);
     expect(timingSafeSecretEqual(null, "test-secret")).toBe(false);
+
+    createApp();
+
+    expect(redisConstructor).not.toHaveBeenCalled();
   });
 
   it("rejects missing or wrong secrets before parsing a 65 KB JSON body", async () => {

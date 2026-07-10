@@ -9,7 +9,7 @@ import type {
 import crypto from "node:crypto";
 import { config } from "../config";
 import { ingestMcpActionLogController } from "../controllers/v2/mcp-action-logs";
-import { wrap } from "./shared";
+import { wrap } from "./wrap";
 
 const MCP_ACTION_LOG_BODY_LIMIT = "64kb";
 const DEFAULT_MCP_ACTION_LOG_RATE_LIMIT = 600;

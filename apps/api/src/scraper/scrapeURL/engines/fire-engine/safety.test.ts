@@ -1,4 +1,23 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("ioredis", () => {
+  class MockRedis {
+    status = "ready";
+    on = vi.fn(() => this);
+    set = vi.fn();
+    get = vi.fn(async () => null);
+    del = vi.fn();
+    expire = vi.fn();
+    disconnect = vi.fn();
+    quit = vi.fn();
+  }
+
+  return {
+    default: MockRedis,
+    Redis: MockRedis,
+  };
+});
+
 import { config } from "../../../../config";
 import {
   canUseFireEngineForTarget,
