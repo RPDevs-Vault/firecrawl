@@ -3,10 +3,15 @@ import { config } from "../config";
 
 const METADATA_HOSTS = new Set(["metadata.google.internal", "metadata"]);
 
-function shouldAllowLocal(): boolean {
+type UrlSafetyOptions = {
+  allowLocal?: boolean;
+};
+
+function shouldAllowLocal(options: UrlSafetyOptions = {}): boolean {
   return (
-    config.ALLOW_LOCAL_WEBHOOKS === true &&
-    config.TEST_SUITE_SELF_HOSTED === true
+    options.allowLocal === true ||
+    (config.ALLOW_LOCAL_WEBHOOKS === true &&
+      config.TEST_SUITE_SELF_HOSTED === true)
   );
 }
 
@@ -60,7 +65,10 @@ function isUnsafeIpLiteral(hostname: string): boolean {
   return addr.range() !== "unicast";
 }
 
-export function assertPublicHttpUrl(url: string): string {
+export function assertPublicHttpUrl(
+  url: string,
+  options: UrlSafetyOptions = {},
+): string {
   let parsed: URL;
   try {
     parsed = new URL(url);
@@ -80,7 +88,7 @@ export function assertPublicHttpUrl(url: string): string {
     .replace(/^\[|\]$/g, "")
     .replace(/\.$/, "")
     .toLowerCase();
-  if (!shouldAllowLocal()) {
+  if (!shouldAllowLocal(options)) {
     if (
       hostname === "localhost" ||
       hostname.endsWith(".localhost") ||

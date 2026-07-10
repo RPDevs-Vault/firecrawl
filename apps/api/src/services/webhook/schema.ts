@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { assertPublicHttpUrl } from "../../lib/url-safety";
 
 const BLACKLISTED_WEBHOOK_HEADERS = ["x-firecrawl-signature"];
 
@@ -12,7 +13,14 @@ export function createWebhookSchema<T extends [string, ...string[]]>(
     x => (typeof x === "string" ? { url: x } : x),
     z
       .strictObject({
-        url: z.url(),
+        url: z.url().refine(url => {
+          try {
+            assertPublicHttpUrl(url);
+            return true;
+          } catch {
+            return false;
+          }
+        }, "Invalid URL"),
         headers: z.record(z.string(), z.string()).prefault({}),
         metadata: z.record(z.string(), z.string()).prefault({}),
         events: z.array(z.enum(events)).prefault([...events]),
