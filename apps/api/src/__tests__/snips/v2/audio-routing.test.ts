@@ -10,10 +10,13 @@ describe("Audio format engine routing (buildFallbackList)", () => {
   let setDataLayerCapabilitiesForTest: typeof import("../../../lib/data-layer.js").setDataLayerCapabilitiesForTest;
 
   const originalFireEngineUrl = process.env.FIRE_ENGINE_BETA_URL;
+  const originalFireEngineTargetSsrfProof =
+    process.env.FIRE_ENGINE_TARGET_SSRF_PROOF;
   const originalIndexUrl = process.env.INDEX_DATABASE_URL;
 
   beforeAll(async () => {
     process.env.FIRE_ENGINE_BETA_URL = "http://test-fire-engine";
+    process.env.FIRE_ENGINE_TARGET_SSRF_PROOF = "true";
     process.env.INDEX_DATABASE_URL =
       "postgresql://postgres:postgres@localhost:5432/postgres";
 
@@ -22,10 +25,8 @@ describe("Audio format engine routing (buildFallbackList)", () => {
     ({ buildFallbackList } = await import(
       "../../../scraper/scrapeURL/engines/index.js"
     ));
-    ({
-      clearDataLayerCapabilitiesForTest,
-      setDataLayerCapabilitiesForTest,
-    } = await import("../../../lib/data-layer.js"));
+    ({ clearDataLayerCapabilitiesForTest, setDataLayerCapabilitiesForTest } =
+      await import("../../../lib/data-layer.js"));
   });
 
   afterEach(() => {
@@ -37,6 +38,12 @@ describe("Audio format engine routing (buildFallbackList)", () => {
       delete process.env.FIRE_ENGINE_BETA_URL;
     } else {
       process.env.FIRE_ENGINE_BETA_URL = originalFireEngineUrl;
+    }
+    if (originalFireEngineTargetSsrfProof === undefined) {
+      delete process.env.FIRE_ENGINE_TARGET_SSRF_PROOF;
+    } else {
+      process.env.FIRE_ENGINE_TARGET_SSRF_PROOF =
+        originalFireEngineTargetSsrfProof;
     }
     if (originalIndexUrl === undefined) {
       delete process.env.INDEX_DATABASE_URL;

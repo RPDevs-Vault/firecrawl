@@ -7,7 +7,10 @@ import {
   scrapeURLWithFireEngineChromeCDP,
   scrapeURLWithFireEngineTLSClient,
 } from "./fire-engine";
-import { hasFireEngineTargetSsrfProof } from "./fire-engine/safety";
+import {
+  assertCanUseFireEngineForTarget,
+  canUseFireEngineForTarget,
+} from "./fire-engine/safety";
 import {
   dataLayerMaxReasonableTime,
   scrapeURLWithDataLayer,
@@ -57,10 +60,6 @@ export type Engine =
   | "wikipedia"
   | "x-twitter";
 
-const useFireEngine =
-  config.FIRE_ENGINE_BETA_URL !== "" &&
-  config.FIRE_ENGINE_BETA_URL !== undefined &&
-  hasFireEngineTargetSsrfProof();
 const usePlaywright =
   config.PLAYWRIGHT_MICROSERVICE_URL !== "" &&
   config.PLAYWRIGHT_MICROSERVICE_URL !== undefined;
@@ -73,25 +72,48 @@ const useXTwitter =
   (config.XAI_API_KEY !== undefined && config.XAI_API_KEY !== "") ||
   config.USE_DB_AUTHENTICATION === true;
 
-const engines: Engine[] = [
-  ...(useXTwitter ? ["x-twitter" as const] : []),
-  ...(useWikipedia ? ["wikipedia" as const] : []),
-  ...(useIndex ? ["index" as const, "index;documents" as const] : []),
-  ...(useFireEngine
-    ? [
-        "fire-engine;chrome-cdp" as const,
-        "fire-engine;chrome-cdp;stealth" as const,
-        "fire-engine(retry);chrome-cdp" as const,
-        "fire-engine(retry);chrome-cdp;stealth" as const,
-        "fire-engine;tlsclient" as const,
-        "fire-engine;tlsclient;stealth" as const,
-      ]
-    : []),
-  ...(usePlaywright ? ["playwright" as const] : []),
-  "fetch",
-  "pdf",
-  "document",
+const fireEngineEngines: Engine[] = [
+  "fire-engine;chrome-cdp",
+  "fire-engine;chrome-cdp;stealth",
+  "fire-engine(retry);chrome-cdp",
+  "fire-engine(retry);chrome-cdp;stealth",
+  "fire-engine;tlsclient",
+  "fire-engine;tlsclient;stealth",
 ];
+
+const mockFireEngineEngines: Engine[] = [
+  "fire-engine;chrome-cdp",
+  "fire-engine(retry);chrome-cdp",
+  "fire-engine;chrome-cdp;stealth",
+  "fire-engine(retry);chrome-cdp;stealth",
+];
+
+function isFireEngineConfigured() {
+  return (
+    config.FIRE_ENGINE_BETA_URL !== "" &&
+    config.FIRE_ENGINE_BETA_URL !== undefined
+  );
+}
+
+function isFireEngine(engine: Engine) {
+  return engine.startsWith("fire-engine");
+}
+
+function getConfiguredEngines(meta: Pick<Meta, "mock">): Engine[] {
+  const useFireEngine =
+    isFireEngineConfigured() && canUseFireEngineForTarget(meta);
+
+  return [
+    ...(useXTwitter ? ["x-twitter" as const] : []),
+    ...(useWikipedia ? ["wikipedia" as const] : []),
+    ...(useIndex ? ["index" as const, "index;documents" as const] : []),
+    ...(useFireEngine ? fireEngineEngines : []),
+    ...(usePlaywright ? ["playwright" as const] : []),
+    "fetch",
+    "pdf",
+    "document",
+  ];
+}
 
 const featureFlags = [
   "actions",
@@ -614,18 +636,14 @@ export async function buildFallbackList(meta: Meta): Promise<
     : false;
 
   const _engines: Engine[] = [
-    ...engines,
+    ...getConfiguredEngines(meta),
 
-    // enable fire-engine in self-hosted testing environment when mocks are supplied
-    ...(!useFireEngine && meta.mock !== null
-      ? ([
-          "fire-engine;chrome-cdp",
-          "fire-engine(retry);chrome-cdp",
-          "fire-engine;chrome-cdp;stealth",
-          "fire-engine(retry);chrome-cdp;stealth",
-          // "fire-engine;tlsclient",
-          // "fire-engine;tlsclient;stealth",
-        ] as Engine[])
+    // Enable fire-engine only for explicit mock replay when production proof is
+    // absent. Public/untrusted targets without target-side SSRF proof must fail
+    // closed even if a caller tries to force Fire Engine.
+    ...(!(isFireEngineConfigured() && canUseFireEngineForTarget(meta)) &&
+    meta.mock !== null
+      ? mockFireEngineEngines
       : []),
   ];
 
@@ -678,12 +696,15 @@ export async function buildFallbackList(meta: Meta): Promise<
     unsupportedFeatures: Set<FeatureFlag>;
   }[] = [];
 
-  const currentEngines =
+  const requestedEngines =
     meta.internalOptions.forceEngine !== undefined
       ? Array.isArray(meta.internalOptions.forceEngine)
         ? meta.internalOptions.forceEngine
         : [meta.internalOptions.forceEngine]
       : _engines;
+  const currentEngines = canUseFireEngineForTarget(meta)
+    ? requestedEngines
+    : requestedEngines.filter(engine => !isFireEngine(engine));
 
   for (const engine of currentEngines) {
     const supportedFlags = new Set([
@@ -790,6 +811,10 @@ export async function scrapeURLWithEngine(
   meta: Meta,
   engine: Engine,
 ): Promise<EngineScrapeResult> {
+  if (isFireEngine(engine)) {
+    assertCanUseFireEngineForTarget(meta);
+  }
+
   const fn = engineHandlers[engine];
   const logger = meta.logger.child({
     method: fn.name ?? "scrapeURLWithEngine",

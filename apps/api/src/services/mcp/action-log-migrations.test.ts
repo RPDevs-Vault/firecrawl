@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { resolve } from "node:path";
 
 describe("MCP action log migrations", () => {
-  const migrationDir = join(process.cwd(), "apps/api/src/db/migrations");
+  const migrationDir = resolve(__dirname, "../../db/migrations");
   const fresh = readFileSync(
-    join(migrationDir, "20260709000200_create_mcp_action_logs.sql"),
+    resolve(migrationDir, "20260709000200_create_mcp_action_logs.sql"),
     "utf8",
   );
   const reconcile = readFileSync(
-    join(
+    resolve(
       migrationDir,
       "20260709000300_reconcile_mcp_action_log_constraints.sql",
     ),
