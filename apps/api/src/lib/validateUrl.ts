@@ -1,5 +1,6 @@
 import * as undici from "undici";
 import { getSecureDispatcher } from "../scraper/scrapeURL/engines/utils/safeFetch";
+import { assertPublicHttpUrl } from "./url-safety";
 
 export const protocolIncluded = (url: string) => {
   // if :// not in the start of the url assume http (maybe https?)
@@ -31,9 +32,7 @@ export const checkAndUpdateURL = (url: string) => {
 
   const typedUrlObj = urlObj as URL;
 
-  if (typedUrlObj.protocol !== "http:" && typedUrlObj.protocol !== "https:") {
-    throw new Error("Invalid URL");
-  }
+  assertPublicHttpUrl(url);
 
   return { urlObj: typedUrlObj, url: url };
 };
@@ -46,9 +45,7 @@ export const checkUrl = (url: string) => {
 
   const typedUrlObj = urlObj as URL;
 
-  if (typedUrlObj.protocol !== "http:" && typedUrlObj.protocol !== "https:") {
-    throw new Error("Invalid URL");
-  }
+  assertPublicHttpUrl(url);
 
   if ((url.split(".")[0].match(/:/g) || []).length !== 1) {
     throw new Error("Invalid URL. Invalid protocol."); // for this one: http://http://example.com
@@ -148,9 +145,7 @@ export const checkAndUpdateURLForMap = (
 
   const typedUrlObj = urlObj as URL;
 
-  if (typedUrlObj.protocol !== "http:" && typedUrlObj.protocol !== "https:") {
-    throw new Error("Invalid URL");
-  }
+  assertPublicHttpUrl(url);
 
   // remove any query params
   if (ignoreQueryParameters) {

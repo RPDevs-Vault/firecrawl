@@ -58,7 +58,9 @@ function createApp(rateLimit = createMcpActionLogRateLimitMiddleware()) {
       "status" in err &&
       (err as { status?: number }).status === 413
     ) {
-      return res.status(413).json({ success: false, error: "Request body is too large" });
+      return res
+        .status(413)
+        .json({ success: false, error: "Request body is too large" });
     }
     return res.status(500).json({ success: false, error: "unexpected" });
   });
@@ -114,7 +116,6 @@ describe("MCP action log HTTP ingest", () => {
     expect(dbMock.values).toHaveLength(1);
   });
 
-
   it("returns 400 for invalid client input and 500 for persistence failures", async () => {
     const invalid = await request(createApp())
       .post("/v2/mcp/action-logs")
@@ -145,7 +146,13 @@ describe("MCP action log HTTP ingest", () => {
   });
 
   it("returns 429 with Retry-After when the dedicated action-log limiter is saturated", async () => {
-    const app = createApp(createMcpActionLogRateLimitMiddleware({ limit: 1, windowMs: 10_000, now: () => 1_000 }));
+    const app = createApp(
+      createMcpActionLogRateLimitMiddleware({
+        limit: 1,
+        windowMs: 10_000,
+        now: () => 1_000,
+      }),
+    );
     const payload = {
       team_id: "00000000-0000-4000-8000-000000000001",
       auth_type: "oauth",
@@ -153,7 +160,14 @@ describe("MCP action log HTTP ingest", () => {
       status: "started",
     };
 
-    expect((await request(app).post("/v2/mcp/action-logs").set("Authorization", "Bearer test-secret").send(payload)).status).toBe(202);
+    expect(
+      (
+        await request(app)
+          .post("/v2/mcp/action-logs")
+          .set("Authorization", "Bearer test-secret")
+          .send(payload)
+      ).status,
+    ).toBe(202);
     const blocked = await request(app)
       .post("/v2/mcp/action-logs")
       .set("Authorization", "Bearer test-secret")

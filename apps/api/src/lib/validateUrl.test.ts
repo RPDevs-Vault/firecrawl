@@ -1,4 +1,6 @@
-import { isSameDomain, removeDuplicateUrls } from "./validateUrl";
+import { afterEach, describe, expect, it } from "vitest";
+import { config } from "../config";
+import { checkUrl, isSameDomain, removeDuplicateUrls } from "./validateUrl";
 import { isSameSubdomain } from "./validateUrl";
 
 describe("isSameDomain", () => {
@@ -167,5 +169,45 @@ describe("removeDuplicateUrls", () => {
     const urls = ["https://example.com", "https://example.com/"];
     const result = removeDuplicateUrls(urls);
     expect(result).toEqual(["https://example.com"]);
+  });
+});
+
+describe("checkUrl public target safety", () => {
+  const originalAllowLocal = config.ALLOW_LOCAL_WEBHOOKS;
+  const originalSelfHosted = config.TEST_SUITE_SELF_HOSTED;
+
+  afterEach(() => {
+    config.ALLOW_LOCAL_WEBHOOKS = originalAllowLocal;
+    config.TEST_SUITE_SELF_HOSTED = originalSelfHosted;
+  });
+
+  it("rejects credentials, loopback, private, metadata, and translated private literals", () => {
+    const unsafe = [
+      "https://user:pass@example.com",
+      "http://127.0.0.1",
+      "http://localhost",
+      "http://10.0.0.1",
+      "http://169.254.169.254/latest/meta-data",
+      "http://[::ffff:127.0.0.1]",
+      "http://[2002:7f00:0001::1]",
+      "http://[64:ff9b::7f00:1]",
+      "http://metadata.google.internal",
+    ];
+
+    for (const url of unsafe) {
+      expect(() => checkUrl(url), url).toThrow(/Invalid URL/);
+    }
+  });
+
+  it("keeps safe public URLs and preserves explicit self-hosted local allowance", () => {
+    expect(checkUrl("https://example.com/path")).toBe(
+      "https://example.com/path",
+    );
+
+    config.ALLOW_LOCAL_WEBHOOKS = true;
+    config.TEST_SUITE_SELF_HOSTED = true;
+    expect(checkUrl("http://127.0.0.1:3000/path")).toBe(
+      "http://127.0.0.1:3000/path",
+    );
   });
 });

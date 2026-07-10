@@ -74,7 +74,6 @@ describe("MCP action logs", () => {
     ).toThrow("client_ip");
   });
 
-
   it("rejects invalid IDs and enums before DB work", () => {
     const base = {
       team_id: "00000000-0000-4000-8000-000000000001",
@@ -123,7 +122,6 @@ describe("MCP action logs", () => {
     });
   });
 
-
   it("encodes stable cursors and rejects invalid cursor input", () => {
     const cursor = encodeMcpActionLogCursor({
       created_at: "2026-07-10T10:00:00.000Z",
@@ -141,27 +139,50 @@ describe("MCP action logs", () => {
 
   it("fetches one extra row for cursor pagination and returns the next cursor", async () => {
     const rows = [
-      { id: "00000000-0000-4000-8000-000000000003", created_at: "2026-07-10T10:03:00.000Z" },
-      { id: "00000000-0000-4000-8000-000000000002", created_at: "2026-07-10T10:02:00.000Z" },
-      { id: "00000000-0000-4000-8000-000000000001", created_at: "2026-07-10T10:01:00.000Z" },
+      {
+        id: "00000000-0000-4000-8000-000000000003",
+        created_at: "2026-07-10T10:03:00.000Z",
+      },
+      {
+        id: "00000000-0000-4000-8000-000000000002",
+        created_at: "2026-07-10T10:02:00.000Z",
+      },
+      {
+        id: "00000000-0000-4000-8000-000000000001",
+        created_at: "2026-07-10T10:01:00.000Z",
+      },
     ];
     const calls: any[] = [];
     const db = {
       select() {
         return {
-          from() { return this; },
-          where(value: any) { calls.push(["where", value]); return this; },
-          orderBy() { return this; },
-          limit(value: number) { calls.push(["limit", value]); return Promise.resolve(rows); },
+          from() {
+            return this;
+          },
+          where(value: any) {
+            calls.push(["where", value]);
+            return this;
+          },
+          orderBy() {
+            return this;
+          },
+          limit(value: number) {
+            calls.push(["limit", value]);
+            return Promise.resolve(rows);
+          },
         };
       },
     };
 
-    const result = await listMcpActionLogs(db, "00000000-0000-4000-8000-000000000001", {
-      limit: 2,
-      isTeamAdmin: false,
-      viewerUserId: "00000000-0000-4000-8000-000000000002",
-    });
+    const result = await listMcpActionLogs(
+      db,
+      "00000000-0000-4000-8000-000000000001",
+      {
+        limit: 2,
+        isTeamAdmin: false,
+        viewerUserId: "00000000-0000-4000-8000-000000000002",
+      },
+    );
 
     expect(calls).toContainEqual(["limit", 3]);
     expect(result.data).toEqual(rows.slice(0, 2));

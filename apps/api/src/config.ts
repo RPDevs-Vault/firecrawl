@@ -172,6 +172,7 @@ const configSchema = z.object({
   FIRE_ENGINE_AB_URL: z.string().optional(),
   FIRE_ENGINE_AB_RATE: z.coerce.number().optional(),
   FIRE_ENGINE_AB_MODE: z.enum(["mirror", "split"]).default("mirror"),
+  FIRE_ENGINE_TARGET_SSRF_PROOF: z.stringbool().default(false),
 
   // Indexer
   INDEXER_RABBITMQ_URL: z.string().optional(),

@@ -7,6 +7,7 @@ import {
   scrapeURLWithFireEngineChromeCDP,
   scrapeURLWithFireEngineTLSClient,
 } from "./fire-engine";
+import { hasFireEngineTargetSsrfProof } from "./fire-engine/safety";
 import {
   dataLayerMaxReasonableTime,
   scrapeURLWithDataLayer,
@@ -58,7 +59,8 @@ export type Engine =
 
 const useFireEngine =
   config.FIRE_ENGINE_BETA_URL !== "" &&
-  config.FIRE_ENGINE_BETA_URL !== undefined;
+  config.FIRE_ENGINE_BETA_URL !== undefined &&
+  hasFireEngineTargetSsrfProof();
 const usePlaywright =
   config.PLAYWRIGHT_MICROSERVICE_URL !== "" &&
   config.PLAYWRIGHT_MICROSERVICE_URL !== undefined;

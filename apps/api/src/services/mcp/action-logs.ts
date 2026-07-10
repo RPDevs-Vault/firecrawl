@@ -4,7 +4,12 @@ import * as schema from "../../db/schema";
 export const MCP_ACTION_LOG_STATUSES = ["started", "success", "error"] as const;
 export type McpActionLogStatus = (typeof MCP_ACTION_LOG_STATUSES)[number];
 
-const MCP_ACTION_LOG_AUTH_TYPES = ["oauth", "api-key", "keyless", "unknown"] as const;
+const MCP_ACTION_LOG_AUTH_TYPES = [
+  "oauth",
+  "api-key",
+  "keyless",
+  "unknown",
+] as const;
 export type McpActionLogAuthType = (typeof MCP_ACTION_LOG_AUTH_TYPES)[number];
 
 export class McpActionLogValidationError extends Error {}
@@ -22,7 +27,8 @@ const MCP_ACTION_LOG_FIELD_LIMITS = {
 
 const SECRET_LIKE_METADATA_PATTERN =
   /(?:\bBearer\s+[^\s]+|\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b|\bsk-[A-Za-z0-9_-]+|\bfc-[A-Za-z0-9_-]+|\bfco_[A-Za-z0-9_-]+|\bfcr_[A-Za-z0-9_-]+)/i;
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function validationError(message: string): never {
   throw new McpActionLogValidationError(message);
@@ -70,7 +76,11 @@ function normalizeRequiredMetadataString(
   return normalizeMetadataString(value, fieldName, { required: true })!;
 }
 
-function normalizeUuid(value: unknown, fieldName: "team_id" | "user_id", required: boolean) {
+function normalizeUuid(
+  value: unknown,
+  fieldName: "team_id" | "user_id",
+  required: boolean,
+) {
   if (typeof value !== "string" || value.trim() === "") {
     if (required) validationError(`${fieldName} is required`);
     return null;
@@ -149,7 +159,10 @@ export function normalizeMcpActionLogInput(
   payload: Record<string, unknown>,
 ): McpActionLogInput {
   const teamId = normalizeUuid(payload.team_id, "team_id", true)!;
-  const toolName = normalizeRequiredMetadataString(payload.tool_name, "tool_name");
+  const toolName = normalizeRequiredMetadataString(
+    payload.tool_name,
+    "tool_name",
+  );
   const status = payload.status;
   if (!MCP_ACTION_LOG_STATUSES.includes(status as McpActionLogStatus)) {
     validationError("status must be started, success, or error");
@@ -223,15 +236,28 @@ export type McpActionLogListOptions = {
   isTeamAdmin?: boolean;
 };
 
-export function encodeMcpActionLogCursor(row: { created_at: Date | string; id: string }) {
-  const createdAt = row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at;
-  return Buffer.from(JSON.stringify({ created_at: createdAt, id: row.id })).toString("base64url");
+export function encodeMcpActionLogCursor(row: {
+  created_at: Date | string;
+  id: string;
+}) {
+  const createdAt =
+    row.created_at instanceof Date
+      ? row.created_at.toISOString()
+      : row.created_at;
+  return Buffer.from(
+    JSON.stringify({ created_at: createdAt, id: row.id }),
+  ).toString("base64url");
 }
 
 export function decodeMcpActionLogCursor(cursor: string) {
   try {
-    const decoded = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"));
-    if (typeof decoded.created_at !== "string" || Number.isNaN(Date.parse(decoded.created_at))) {
+    const decoded = JSON.parse(
+      Buffer.from(cursor, "base64url").toString("utf8"),
+    );
+    if (
+      typeof decoded.created_at !== "string" ||
+      Number.isNaN(Date.parse(decoded.created_at))
+    ) {
       validationError("cursor is invalid");
     }
     if (typeof decoded.id !== "string" || !UUID_PATTERN.test(decoded.id)) {
@@ -244,22 +270,34 @@ export function decodeMcpActionLogCursor(cursor: string) {
   }
 }
 
-export async function listMcpActionLogs(db: any, teamId: string, options: McpActionLogListOptions = {}) {
+export async function listMcpActionLogs(
+  db: any,
+  teamId: string,
+  options: McpActionLogListOptions = {},
+) {
   const limit = Math.min(Math.max(options.limit ?? 50, 1), 100);
-  const cursor = options.cursor ? decodeMcpActionLogCursor(options.cursor) : null;
+  const cursor = options.cursor
+    ? decodeMcpActionLogCursor(options.cursor)
+    : null;
   const isTeamAdmin = options.isTeamAdmin !== false;
   const visibility = isTeamAdmin
     ? undefined
     : and(
         eq(schema.mcp_action_logs.auth_type, "oauth"),
-        eq(schema.mcp_action_logs.user_id, options.viewerUserId ?? "00000000-0000-0000-0000-000000000000"),
+        eq(
+          schema.mcp_action_logs.user_id,
+          options.viewerUserId ?? "00000000-0000-0000-0000-000000000000",
+        ),
       );
   const cursorClause = cursor
     ? or(
-        lt(schema.mcp_action_logs.created_at, new Date(cursor.created_at)),
+        lt(schema.mcp_action_logs.created_at as any, cursor.created_at as any),
         and(
-          eq(schema.mcp_action_logs.created_at, new Date(cursor.created_at)),
-          lt(schema.mcp_action_logs.id, cursor.id),
+          eq(
+            schema.mcp_action_logs.created_at as any,
+            cursor.created_at as any,
+          ),
+          lt(schema.mcp_action_logs.id as any, cursor.id as any),
         ),
       )
     : undefined;
@@ -297,6 +335,7 @@ export async function listMcpActionLogs(db: any, teamId: string, options: McpAct
 
   return {
     data: rows.slice(0, limit),
-    nextCursor: rows.length > limit ? encodeMcpActionLogCursor(rows[limit - 1]) : null,
+    nextCursor:
+      rows.length > limit ? encodeMcpActionLogCursor(rows[limit - 1]) : null,
   };
 }

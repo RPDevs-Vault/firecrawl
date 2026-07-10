@@ -9,14 +9,21 @@ describe("MCP action log migrations", () => {
     "utf8",
   );
   const reconcile = readFileSync(
-    join(migrationDir, "20260709000300_reconcile_mcp_action_log_constraints.sql"),
+    join(
+      migrationDir,
+      "20260709000300_reconcile_mcp_action_log_constraints.sql",
+    ),
     "utf8",
   );
 
   it("enables RLS and denies direct anon/authenticated access", () => {
     for (const sql of [fresh, reconcile]) {
-      expect(sql).toContain("alter table public.mcp_action_logs enable row level security");
-      expect(sql).toContain("revoke all on table public.mcp_action_logs from anon, authenticated");
+      expect(sql).toContain(
+        "alter table public.mcp_action_logs enable row level security",
+      );
+      expect(sql).toContain(
+        "revoke all on table public.mcp_action_logs from anon, authenticated",
+      );
       expect(sql).toContain("service_role");
     }
   });

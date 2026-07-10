@@ -212,7 +212,6 @@ app.use(
     ) {
       res.status(413).json({
         success: false,
-        code: "PAYLOAD_TOO_LARGE",
         error: "Request body is too large",
       });
     } else if (err instanceof ZodError) {

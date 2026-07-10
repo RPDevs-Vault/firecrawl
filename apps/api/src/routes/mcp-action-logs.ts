@@ -22,7 +22,10 @@ function bearerToken(value: string | string[] | undefined) {
   return header?.startsWith("Bearer ") ? header.slice("Bearer ".length) : null;
 }
 
-export function timingSafeSecretEqual(provided: string | null, expected?: string) {
+export function timingSafeSecretEqual(
+  provided: string | null,
+  expected?: string,
+) {
   if (!provided || !expected) return false;
   const providedBytes = Buffer.from(provided);
   const expectedBytes = Buffer.from(expected);
@@ -35,7 +38,12 @@ export function authenticateMcpActionLogSecret(
   res: Response,
   next: NextFunction,
 ) {
-  if (!timingSafeSecretEqual(bearerToken(req.headers.authorization), config.MCP_ACTION_LOG_SECRET)) {
+  if (
+    !timingSafeSecretEqual(
+      bearerToken(req.headers.authorization),
+      config.MCP_ACTION_LOG_SECRET,
+    )
+  ) {
     return res.status(401).json({ success: false, error: "Unauthorized" });
   }
   next();
@@ -47,7 +55,8 @@ export function createMcpActionLogRateLimitMiddleware(options?: {
   now?: () => number;
 }) {
   const limit = options?.limit ?? DEFAULT_MCP_ACTION_LOG_RATE_LIMIT;
-  const windowMs = options?.windowMs ?? DEFAULT_MCP_ACTION_LOG_RATE_LIMIT_WINDOW_MS;
+  const windowMs =
+    options?.windowMs ?? DEFAULT_MCP_ACTION_LOG_RATE_LIMIT_WINDOW_MS;
   const now = options?.now ?? (() => Date.now());
   const buckets = new Map<string, { count: number; resetAt: number }>();
 
@@ -55,14 +64,18 @@ export function createMcpActionLogRateLimitMiddleware(options?: {
     const key = req.ip || req.socket.remoteAddress || "unknown";
     const current = now();
     const bucket = buckets.get(key);
-    const activeBucket = !bucket || bucket.resetAt <= current
-      ? { count: 0, resetAt: current + windowMs }
-      : bucket;
+    const activeBucket =
+      !bucket || bucket.resetAt <= current
+        ? { count: 0, resetAt: current + windowMs }
+        : bucket;
     activeBucket.count += 1;
     buckets.set(key, activeBucket);
 
     if (activeBucket.count > limit) {
-      const retryAfterSeconds = Math.max(1, Math.ceil((activeBucket.resetAt - current) / 1000));
+      const retryAfterSeconds = Math.max(
+        1,
+        Math.ceil((activeBucket.resetAt - current) / 1000),
+      );
       res.setHeader("Retry-After", String(retryAfterSeconds));
       return res.status(429).json({
         success: false,
@@ -75,7 +88,7 @@ export function createMcpActionLogRateLimitMiddleware(options?: {
 }
 
 export function registerMcpActionLogIngestRoute(
-  app: Pick<express.Express, "post">,
+  app: { post: (...args: any[]) => any },
   options?: {
     rateLimit?: ReturnType<typeof createMcpActionLogRateLimitMiddleware>;
   },
