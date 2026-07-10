@@ -3,6 +3,7 @@ import { db, dbRr } from "../../db/connection";
 import { ErrorResponse, RequestWithAuth } from "./types";
 import {
   listMcpActionLogs,
+  McpActionLogValidationError,
   normalizeMcpActionLogInput,
   recordMcpActionLog,
 } from "../../services/mcp/action-logs";
@@ -18,9 +19,16 @@ export async function ingestMcpActionLogController(
     const row = await recordMcpActionLog(db, input);
     return res.status(202).json({ success: true, id: row?.id ?? null });
   } catch (error) {
-    return res.status(400).json({
+    if (error instanceof McpActionLogValidationError) {
+      return res.status(400).json({
+        success: false,
+        error: error.message,
+      });
+    }
+
+    return res.status(500).json({
       success: false,
-      error: error instanceof Error ? error.message : "Invalid MCP action log",
+      error: "Failed to persist MCP action log",
     });
   }
 }

@@ -51,7 +51,7 @@ describe("MCP action logs", () => {
     });
   });
 
-  it("rejects secrets, raw URLs, args, and raw IPs", () => {
+  it("keeps the direct unsafe-field assertion helper fail-closed", () => {
     expect(() =>
       assertSafeMcpActionLogPayload({ api_key: "fc-secret" }),
     ).toThrow("api_key");
@@ -69,6 +69,55 @@ describe("MCP action logs", () => {
     expect(() =>
       assertSafeMcpActionLogPayload({ client_ip: "192.0.2.1" }),
     ).toThrow("client_ip");
+  });
+
+
+  it("rejects invalid IDs and enums before DB work", () => {
+    const base = {
+      team_id: "00000000-0000-4000-8000-000000000001",
+      auth_type: "oauth",
+      tool_name: "firecrawl_scrape",
+      status: "started",
+    };
+
+    expect(() =>
+      normalizeMcpActionLogInput({ ...base, team_id: "not-a-uuid" }),
+    ).toThrow("team_id must be a valid UUID");
+    expect(() =>
+      normalizeMcpActionLogInput({ ...base, user_id: "not-a-uuid" }),
+    ).toThrow("user_id must be a valid UUID");
+    expect(() =>
+      normalizeMcpActionLogInput({ ...base, auth_type: "session" }),
+    ).toThrow("auth_type must be oauth, api-key, keyless, or unknown");
+    expect(() =>
+      normalizeMcpActionLogInput({ ...base, api_key_id: -1 }),
+    ).toThrow("api_key_id must be a positive integer");
+  });
+
+  it("drops optional unsafe and secret-like metadata without losing the action", () => {
+    expect(
+      normalizeMcpActionLogInput({
+        team_id: "00000000-0000-4000-8000-000000000001",
+        auth_type: "oauth",
+        tool_name: "firecrawl_scrape",
+        status: "success",
+        request_id: "Bearer fco_secret_token",
+        user_agent: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.signature",
+        client_name: "sk-secretvalue",
+        client_version: "fc-secretvalue",
+        resource: "fco_secretvalue",
+        url: "https://private.example",
+        args: { url: "https://private.example" },
+        raw_ip: "192.0.2.1",
+      }),
+    ).toMatchObject({
+      tool_name: "firecrawl_scrape",
+      request_id: null,
+      user_agent: null,
+      client_name: null,
+      client_version: null,
+      resource: null,
+    });
   });
 
   it("stores only metadata fields", async () => {
@@ -116,15 +165,15 @@ describe("MCP action logs", () => {
       }),
     ).toThrow("resource must not contain control characters");
 
-    expect(() =>
+    expect(
       normalizeMcpActionLogInput({
         team_id: "00000000-0000-4000-8000-000000000001",
         auth_type: "oauth",
         tool_name: "firecrawl_scrape",
         status: "started",
         user_agent: "Bearer fco_secret_token",
-      }),
-    ).toThrow("user_agent must not contain secret-like values");
+      }).user_agent,
+    ).toBeNull();
 
     expect(() =>
       normalizeMcpActionLogInput({
@@ -145,14 +194,14 @@ describe("MCP action logs", () => {
       }),
     ).toThrow("tool_name must be at most 128 characters");
 
-    expect(() =>
+    expect(
       normalizeMcpActionLogInput({
         team_id: "00000000-0000-4000-8000-000000000001",
         auth_type: "oauth",
         tool_name: "firecrawl_scrape",
         status: "started",
         oauth_client_id: "Bearer fco_secret_token",
-      }),
-    ).toThrow("oauth_client_id must not contain secret-like values");
+      }).oauth_client_id,
+    ).toBeNull();
   });
 });

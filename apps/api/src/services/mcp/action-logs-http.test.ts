@@ -11,11 +11,23 @@ import {
 
 function createDbMock() {
   const values: any[] = [];
+  let failInsert = false;
   return {
     values,
+    failNextInsert() {
+      failInsert = true;
+    },
     insert() {
       return {
         values(value: any) {
+          if (failInsert) {
+            failInsert = false;
+            return {
+              returning() {
+                return Promise.reject(new Error("database unavailable"));
+              },
+            };
+          }
           values.push(value);
           return {
             returning() {
@@ -100,6 +112,36 @@ describe("MCP action log HTTP ingest", () => {
 
     expect(res.status).toBe(202);
     expect(dbMock.values).toHaveLength(1);
+  });
+
+
+  it("returns 400 for invalid client input and 500 for persistence failures", async () => {
+    const invalid = await request(createApp())
+      .post("/v2/mcp/action-logs")
+      .set("Authorization", "Bearer test-secret")
+      .send({
+        team_id: "not-a-uuid",
+        auth_type: "oauth",
+        tool_name: "firecrawl_scrape",
+        status: "success",
+      });
+
+    expect(invalid.status).toBe(400);
+    expect(dbMock.values).toHaveLength(0);
+
+    dbMock.failNextInsert();
+    const failed = await request(createApp())
+      .post("/v2/mcp/action-logs")
+      .set("Authorization", "Bearer test-secret")
+      .send({
+        team_id: "00000000-0000-4000-8000-000000000001",
+        auth_type: "oauth",
+        tool_name: "firecrawl_scrape",
+        status: "success",
+      });
+
+    expect(failed.status).toBe(500);
+    expect(failed.body.error).toBe("Failed to persist MCP action log");
   });
 
   it("returns 429 with Retry-After when the dedicated action-log limiter is saturated", async () => {

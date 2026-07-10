@@ -4,6 +4,11 @@ import * as schema from "../../db/schema";
 export const MCP_ACTION_LOG_STATUSES = ["started", "success", "error"] as const;
 export type McpActionLogStatus = (typeof MCP_ACTION_LOG_STATUSES)[number];
 
+const MCP_ACTION_LOG_AUTH_TYPES = ["oauth", "api-key", "keyless", "unknown"] as const;
+export type McpActionLogAuthType = (typeof MCP_ACTION_LOG_AUTH_TYPES)[number];
+
+export class McpActionLogValidationError extends Error {}
+
 const MCP_ACTION_LOG_FIELD_LIMITS = {
   oauth_client_id: 128,
   tool_name: 128,
@@ -16,24 +21,37 @@ const MCP_ACTION_LOG_FIELD_LIMITS = {
 } as const;
 
 const SECRET_LIKE_METADATA_PATTERN =
-  /(?:\bBearer\s+[^\s]+|\bfc-[A-Za-z0-9_-]+|\bfco_[A-Za-z0-9_-]+|\bfcr_[A-Za-z0-9_-]+)/i;
+  /(?:\bBearer\s+[^\s]+|\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b|\bsk-[A-Za-z0-9_-]+|\bfc-[A-Za-z0-9_-]+|\bfco_[A-Za-z0-9_-]+|\bfcr_[A-Za-z0-9_-]+)/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function validationError(message: string): never {
+  throw new McpActionLogValidationError(message);
+}
 
 function normalizeMetadataString(
   value: unknown,
   fieldName: keyof typeof MCP_ACTION_LOG_FIELD_LIMITS,
+  options: { required?: boolean; dropSecretLike?: boolean } = {},
 ): string | null {
-  if (typeof value !== "string") return null;
+  if (typeof value !== "string") {
+    if (options.required) validationError(`${fieldName} is required`);
+    return null;
+  }
   const normalized = value.trim();
-  if (!normalized) return null;
+  if (!normalized) {
+    if (options.required) validationError(`${fieldName} is required`);
+    return null;
+  }
   const maxLength = MCP_ACTION_LOG_FIELD_LIMITS[fieldName];
   if (normalized.length > maxLength) {
-    throw new Error(`${fieldName} must be at most ${maxLength} characters`);
+    validationError(`${fieldName} must be at most ${maxLength} characters`);
   }
   if (/[\u0000-\u001F\u007F]/.test(normalized)) {
-    throw new Error(`${fieldName} must not contain control characters`);
+    validationError(`${fieldName} must not contain control characters`);
   }
   if (SECRET_LIKE_METADATA_PATTERN.test(normalized)) {
-    throw new Error(`${fieldName} must not contain secret-like values`);
+    if (options.dropSecretLike && !options.required) return null;
+    validationError(`${fieldName} must not contain secret-like values`);
   }
   return normalized;
 }
@@ -42,16 +60,42 @@ function normalizeOptionalMetadataString(
   value: unknown,
   fieldName: keyof typeof MCP_ACTION_LOG_FIELD_LIMITS,
 ): string | null {
-  return normalizeMetadataString(value, fieldName);
+  return normalizeMetadataString(value, fieldName, { dropSecretLike: true });
 }
 
 function normalizeRequiredMetadataString(
   value: unknown,
   fieldName: keyof typeof MCP_ACTION_LOG_FIELD_LIMITS,
 ): string {
-  const normalized = normalizeMetadataString(value, fieldName);
-  if (!normalized) throw new Error(`${fieldName} is required`);
+  return normalizeMetadataString(value, fieldName, { required: true })!;
+}
+
+function normalizeUuid(value: unknown, fieldName: "team_id" | "user_id", required: boolean) {
+  if (typeof value !== "string" || value.trim() === "") {
+    if (required) validationError(`${fieldName} is required`);
+    return null;
+  }
+  const normalized = value.trim();
+  if (!UUID_PATTERN.test(normalized)) {
+    validationError(`${fieldName} must be a valid UUID`);
+  }
   return normalized;
+}
+
+function normalizeApiKeyId(value: unknown) {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0) {
+    validationError("api_key_id must be a positive integer");
+  }
+  return value;
+}
+
+function normalizeAuthType(value: unknown): McpActionLogAuthType {
+  if (typeof value !== "string") validationError("auth_type is required");
+  if (!MCP_ACTION_LOG_AUTH_TYPES.includes(value as McpActionLogAuthType)) {
+    validationError("auth_type must be oauth, api-key, keyless, or unknown");
+  }
+  return value as McpActionLogAuthType;
 }
 
 export type McpActionLogInput = {
@@ -59,7 +103,7 @@ export type McpActionLogInput = {
   user_id?: string | null;
   api_key_id?: number | null;
   oauth_client_id?: string | null;
-  auth_type: "oauth" | "api-key" | "keyless" | "unknown";
+  auth_type: McpActionLogAuthType;
   tool_name: string;
   status: McpActionLogStatus;
   request_id?: string | null;
@@ -76,11 +120,19 @@ const UNSAFE_FIELDS = new Set([
   "authorization",
   "bearer",
   "args",
+  "arguments",
   "params",
+  "body",
+  "request_body",
+  "response_body",
   "url",
   "urls",
+  "raw_url",
   "raw_ip",
   "client_ip",
+  "ip",
+  "error",
+  "error_message",
 ]);
 
 export function assertSafeMcpActionLogPayload(
@@ -96,30 +148,22 @@ export function assertSafeMcpActionLogPayload(
 export function normalizeMcpActionLogInput(
   payload: Record<string, unknown>,
 ): McpActionLogInput {
-  assertSafeMcpActionLogPayload(payload);
-  const teamId = typeof payload.team_id === "string" ? payload.team_id : "";
+  const teamId = normalizeUuid(payload.team_id, "team_id", true)!;
   const toolName = normalizeRequiredMetadataString(payload.tool_name, "tool_name");
   const status = payload.status;
-  if (!teamId) throw new Error("team_id is required");
   if (!MCP_ACTION_LOG_STATUSES.includes(status as McpActionLogStatus)) {
-    throw new Error("status must be started, success, or error");
+    validationError("status must be started, success, or error");
   }
 
   return {
     team_id: teamId,
-    user_id: typeof payload.user_id === "string" ? payload.user_id : null,
-    api_key_id:
-      typeof payload.api_key_id === "number" ? payload.api_key_id : null,
+    user_id: normalizeUuid(payload.user_id, "user_id", false),
+    api_key_id: normalizeApiKeyId(payload.api_key_id),
     oauth_client_id: normalizeOptionalMetadataString(
       payload.oauth_client_id,
       "oauth_client_id",
     ),
-    auth_type:
-      payload.auth_type === "oauth" ||
-      payload.auth_type === "api-key" ||
-      payload.auth_type === "keyless"
-        ? payload.auth_type
-        : "unknown",
+    auth_type: normalizeAuthType(payload.auth_type),
     tool_name: toolName,
     status: status as McpActionLogStatus,
     request_id: normalizeOptionalMetadataString(
