@@ -3,14 +3,14 @@ import { config } from "../config";
 
 const METADATA_HOSTS = new Set(["metadata.google.internal", "metadata"]);
 
-function shouldAllowLocal() {
+function shouldAllowLocal(): boolean {
   return (
     config.ALLOW_LOCAL_WEBHOOKS === true &&
     config.TEST_SUITE_SELF_HOSTED === true
   );
 }
 
-function ipv4FromParts(parts: number[]) {
+function ipv4FromParts(parts: number[]): string {
   return [
     (parts[0] >> 8) & 255,
     parts[0] & 255,
@@ -19,7 +19,7 @@ function ipv4FromParts(parts: number[]) {
   ].join(".");
 }
 
-function embeddedIpv4FromNat64(parts: number[]) {
+function embeddedIpv4FromNat64(parts: number[]): string {
   return [
     (parts[6] >> 8) & 255,
     parts[6] & 255,
@@ -28,7 +28,7 @@ function embeddedIpv4FromNat64(parts: number[]) {
   ].join(".");
 }
 
-export function isUnsafeIpLiteral(hostname: string) {
+function isUnsafeIpLiteral(hostname: string): boolean {
   if (!IPAddr.isValid(hostname)) return false;
   const addr = IPAddr.parse(hostname);
 
@@ -60,7 +60,7 @@ export function isUnsafeIpLiteral(hostname: string) {
   return addr.range() !== "unicast";
 }
 
-export function assertPublicHttpUrl(url: string) {
+export function assertPublicHttpUrl(url: string): string {
   let parsed: URL;
   try {
     parsed = new URL(url);

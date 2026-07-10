@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { config } from "../../../../config";
-import { hasFireEngineTargetSsrfProof } from "./safety";
+import {
+  canUseFireEngineForTarget,
+  hasFireEngineTargetSsrfProof,
+} from "./safety";
 import type { Meta } from "../..";
 import { buildFallbackList, scrapeURLWithEngine } from "..";
 
@@ -49,6 +52,17 @@ describe("Fire Engine target-side SSRF proof gate", () => {
     const fallback = await buildFallbackList(buildMeta());
 
     expect(fallback.map(x => x.engine)).not.toContain("fire-engine;chrome-cdp");
+  });
+
+  it("allows explicit mock replay without target-side SSRF proof", async () => {
+    config.FIRE_ENGINE_BETA_URL = undefined;
+    config.FIRE_ENGINE_TARGET_SSRF_PROOF = false;
+
+    const meta = buildMeta({ mock: { requests: [], tracker: {} } });
+    const fallback = await buildFallbackList(meta);
+
+    expect(canUseFireEngineForTarget(meta)).toBe(true);
+    expect(fallback.map(x => x.engine)).toEqual(["fire-engine;chrome-cdp"]);
   });
 
   it("allows public engine selection to choose Fire Engine when target-side SSRF proof is configured", async () => {

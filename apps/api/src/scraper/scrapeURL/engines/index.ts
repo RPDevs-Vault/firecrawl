@@ -88,26 +88,35 @@ const mockFireEngineEngines: Engine[] = [
   "fire-engine(retry);chrome-cdp;stealth",
 ];
 
-function isFireEngineConfigured() {
+function isFireEngineConfigured(): boolean {
   return (
     config.FIRE_ENGINE_BETA_URL !== "" &&
     config.FIRE_ENGINE_BETA_URL !== undefined
   );
 }
 
-function isFireEngine(engine: Engine) {
+function isFireEngine(engine: Engine): boolean {
   return engine.startsWith("fire-engine");
 }
 
-function getConfiguredEngines(meta: Pick<Meta, "mock">): Engine[] {
-  const useFireEngine =
-    isFireEngineConfigured() && canUseFireEngineForTarget(meta);
+function getConfiguredFireEngineEngines(meta: Pick<Meta, "mock">): Engine[] {
+  return isFireEngineConfigured() && canUseFireEngineForTarget(meta)
+    ? fireEngineEngines
+    : [];
+}
 
+function getMockReplayFireEngineEngines(meta: Pick<Meta, "mock">): Engine[] {
+  return !isFireEngineConfigured() && meta.mock !== null
+    ? mockFireEngineEngines
+    : [];
+}
+
+function getConfiguredEngines(meta: Pick<Meta, "mock">): Engine[] {
   return [
     ...(useXTwitter ? ["x-twitter" as const] : []),
     ...(useWikipedia ? ["wikipedia" as const] : []),
     ...(useIndex ? ["index" as const, "index;documents" as const] : []),
-    ...(useFireEngine ? fireEngineEngines : []),
+    ...getConfiguredFireEngineEngines(meta),
     ...(usePlaywright ? ["playwright" as const] : []),
     "fetch",
     "pdf",
@@ -638,13 +647,9 @@ export async function buildFallbackList(meta: Meta): Promise<
   const _engines: Engine[] = [
     ...getConfiguredEngines(meta),
 
-    // Enable fire-engine only for explicit mock replay when production proof is
-    // absent. Public/untrusted targets without target-side SSRF proof must fail
-    // closed even if a caller tries to force Fire Engine.
-    ...(!(isFireEngineConfigured() && canUseFireEngineForTarget(meta)) &&
-    meta.mock !== null
-      ? mockFireEngineEngines
-      : []),
+    // Keep explicit mock replay available without requiring production target
+    // SSRF proof. Public/untrusted targets still fail closed below.
+    ...getMockReplayFireEngineEngines(meta),
   ];
 
   if (meta.options.lockdown) {

@@ -8,7 +8,10 @@ import {
   recordMcpActionLog,
 } from "../../services/mcp/action-logs";
 
-type InternalRequest = Request & { body: Record<string, unknown> };
+type InternalRequest = Request<unknown, unknown, Record<string, unknown>>;
+type ListMcpActionLogsResponse =
+  | { success: true; data: unknown[]; nextCursor: string | null }
+  | ErrorResponse;
 
 export async function ingestMcpActionLogController(
   req: InternalRequest,
@@ -35,7 +38,7 @@ export async function ingestMcpActionLogController(
 
 export async function listMcpActionLogsController(
   req: RequestWithAuth,
-  res: Response<{ success: true; data: unknown[] } | ErrorResponse>,
+  res: Response<ListMcpActionLogsResponse>,
 ) {
   const limit = Number.parseInt(String(req.query.limit ?? "50"), 10);
   const cursor = typeof req.query.cursor === "string" ? req.query.cursor : null;
@@ -53,7 +56,7 @@ export async function listMcpActionLogsController(
       success: true,
       data: result.data,
       nextCursor: result.nextCursor,
-    } as any);
+    });
   } catch (error) {
     if (error instanceof McpActionLogValidationError) {
       return res.status(400).json({ success: false, error: error.message });

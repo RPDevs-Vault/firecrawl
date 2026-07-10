@@ -1,8 +1,8 @@
 import { and, desc, eq, lt, or } from "drizzle-orm";
 import * as schema from "../../db/schema";
 
-export const MCP_ACTION_LOG_STATUSES = ["started", "success", "error"] as const;
-export type McpActionLogStatus = (typeof MCP_ACTION_LOG_STATUSES)[number];
+const MCP_ACTION_LOG_STATUSES = ["started", "success", "error"] as const;
+type McpActionLogStatus = (typeof MCP_ACTION_LOG_STATUSES)[number];
 
 const MCP_ACTION_LOG_AUTH_TYPES = [
   "oauth",
@@ -10,7 +10,7 @@ const MCP_ACTION_LOG_AUTH_TYPES = [
   "keyless",
   "unknown",
 ] as const;
-export type McpActionLogAuthType = (typeof MCP_ACTION_LOG_AUTH_TYPES)[number];
+type McpActionLogAuthType = (typeof MCP_ACTION_LOG_AUTH_TYPES)[number];
 
 export class McpActionLogValidationError extends Error {}
 
@@ -108,7 +108,7 @@ function normalizeAuthType(value: unknown): McpActionLogAuthType {
   return value as McpActionLogAuthType;
 }
 
-export type McpActionLogInput = {
+type McpActionLogInput = {
   team_id: string;
   user_id?: string | null;
   api_key_id?: number | null;
@@ -229,7 +229,7 @@ export async function recordMcpActionLog(db: any, input: McpActionLogInput) {
   return rows[0] ?? null;
 }
 
-export type McpActionLogListOptions = {
+type McpActionLogListOptions = {
   limit?: number;
   cursor?: string | null;
   viewerUserId?: string | null;
