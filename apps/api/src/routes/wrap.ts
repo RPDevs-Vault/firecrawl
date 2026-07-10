@@ -1,9 +1,9 @@
-import type { NextFunction, Request, Response } from "express";
+import type { Request, RequestHandler, Response } from "express";
 
 export function wrap(
-  controller: (req: Request, res: Response) => Promise<any>,
-): (req: Request, res: Response, next: NextFunction) => any {
+  controller: (req: Request, res: Response) => Promise<unknown>,
+): RequestHandler {
   return (req, res, next) => {
-    controller(req, res).catch(err => next(err));
+    void controller(req, res).catch(next);
   };
 }
