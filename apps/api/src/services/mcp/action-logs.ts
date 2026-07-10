@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, lt, or } from "drizzle-orm";
 import * as schema from "../../db/schema";
 
 export const MCP_ACTION_LOG_STATUSES = ["started", "success", "error"] as const;
@@ -216,8 +216,60 @@ export async function recordMcpActionLog(db: any, input: McpActionLogInput) {
   return rows[0] ?? null;
 }
 
-export async function listMcpActionLogs(db: any, teamId: string, limit = 50) {
-  return db
+export type McpActionLogListOptions = {
+  limit?: number;
+  cursor?: string | null;
+  viewerUserId?: string | null;
+  isTeamAdmin?: boolean;
+};
+
+export function encodeMcpActionLogCursor(row: { created_at: Date | string; id: string }) {
+  const createdAt = row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at;
+  return Buffer.from(JSON.stringify({ created_at: createdAt, id: row.id })).toString("base64url");
+}
+
+export function decodeMcpActionLogCursor(cursor: string) {
+  try {
+    const decoded = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"));
+    if (typeof decoded.created_at !== "string" || Number.isNaN(Date.parse(decoded.created_at))) {
+      validationError("cursor is invalid");
+    }
+    if (typeof decoded.id !== "string" || !UUID_PATTERN.test(decoded.id)) {
+      validationError("cursor is invalid");
+    }
+    return decoded as { created_at: string; id: string };
+  } catch (error) {
+    if (error instanceof McpActionLogValidationError) throw error;
+    validationError("cursor is invalid");
+  }
+}
+
+export async function listMcpActionLogs(db: any, teamId: string, options: McpActionLogListOptions = {}) {
+  const limit = Math.min(Math.max(options.limit ?? 50, 1), 100);
+  const cursor = options.cursor ? decodeMcpActionLogCursor(options.cursor) : null;
+  const isTeamAdmin = options.isTeamAdmin !== false;
+  const visibility = isTeamAdmin
+    ? undefined
+    : and(
+        eq(schema.mcp_action_logs.auth_type, "oauth"),
+        eq(schema.mcp_action_logs.user_id, options.viewerUserId ?? "00000000-0000-0000-0000-000000000000"),
+      );
+  const cursorClause = cursor
+    ? or(
+        lt(schema.mcp_action_logs.created_at, new Date(cursor.created_at)),
+        and(
+          eq(schema.mcp_action_logs.created_at, new Date(cursor.created_at)),
+          lt(schema.mcp_action_logs.id, cursor.id),
+        ),
+      )
+    : undefined;
+  const where = and(
+    eq(schema.mcp_action_logs.team_id, teamId),
+    visibility,
+    cursorClause,
+  );
+
+  const rows = await db
     .select({
       id: schema.mcp_action_logs.id,
       team_id: schema.mcp_action_logs.team_id,
@@ -236,10 +288,15 @@ export async function listMcpActionLogs(db: any, teamId: string, limit = 50) {
       created_at: schema.mcp_action_logs.created_at,
     })
     .from(schema.mcp_action_logs)
-    .where(and(eq(schema.mcp_action_logs.team_id, teamId)))
+    .where(where)
     .orderBy(
       desc(schema.mcp_action_logs.created_at),
       desc(schema.mcp_action_logs.id),
     )
-    .limit(Math.min(Math.max(limit, 1), 100));
+    .limit(limit + 1);
+
+  return {
+    data: rows.slice(0, limit),
+    nextCursor: rows.length > limit ? encodeMcpActionLogCursor(rows[limit - 1]) : null,
+  };
 }

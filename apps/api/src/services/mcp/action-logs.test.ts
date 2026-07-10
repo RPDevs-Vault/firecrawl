@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   assertSafeMcpActionLogPayload,
   normalizeMcpActionLogInput,
+  decodeMcpActionLogCursor,
+  encodeMcpActionLogCursor,
+  listMcpActionLogs,
   recordMcpActionLog,
 } from "./action-logs";
 
@@ -117,6 +120,54 @@ describe("MCP action logs", () => {
       client_name: null,
       client_version: null,
       resource: null,
+    });
+  });
+
+
+  it("encodes stable cursors and rejects invalid cursor input", () => {
+    const cursor = encodeMcpActionLogCursor({
+      created_at: "2026-07-10T10:00:00.000Z",
+      id: "00000000-0000-4000-8000-000000000099",
+    });
+
+    expect(decodeMcpActionLogCursor(cursor)).toEqual({
+      created_at: "2026-07-10T10:00:00.000Z",
+      id: "00000000-0000-4000-8000-000000000099",
+    });
+    expect(() => decodeMcpActionLogCursor("not-base64-json")).toThrow(
+      "cursor is invalid",
+    );
+  });
+
+  it("fetches one extra row for cursor pagination and returns the next cursor", async () => {
+    const rows = [
+      { id: "00000000-0000-4000-8000-000000000003", created_at: "2026-07-10T10:03:00.000Z" },
+      { id: "00000000-0000-4000-8000-000000000002", created_at: "2026-07-10T10:02:00.000Z" },
+      { id: "00000000-0000-4000-8000-000000000001", created_at: "2026-07-10T10:01:00.000Z" },
+    ];
+    const calls: any[] = [];
+    const db = {
+      select() {
+        return {
+          from() { return this; },
+          where(value: any) { calls.push(["where", value]); return this; },
+          orderBy() { return this; },
+          limit(value: number) { calls.push(["limit", value]); return Promise.resolve(rows); },
+        };
+      },
+    };
+
+    const result = await listMcpActionLogs(db, "00000000-0000-4000-8000-000000000001", {
+      limit: 2,
+      isTeamAdmin: false,
+      viewerUserId: "00000000-0000-4000-8000-000000000002",
+    });
+
+    expect(calls).toContainEqual(["limit", 3]);
+    expect(result.data).toEqual(rows.slice(0, 2));
+    expect(decodeMcpActionLogCursor(result.nextCursor!)).toEqual({
+      created_at: rows[1].created_at,
+      id: rows[1].id,
     });
   });
 
