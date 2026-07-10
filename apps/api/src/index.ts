@@ -31,6 +31,7 @@ import { v7 as uuidv7 } from "uuid";
 import { attachWsProxy } from "./services/agentLivecastWS";
 import { cacheableLookup } from "./scraper/scrapeURL/lib/cacheableLookup";
 import { v2Router } from "./routes/v2";
+import { registerMcpActionLogIngestRoute } from "./routes/mcp-action-logs";
 import { nuqShutdown } from "./services/worker/nuq";
 import { getErrorContactMessage } from "./lib/deployment";
 import { initializeBlocklist } from "./scraper/WebScraper/utils/blocklist";
@@ -75,6 +76,8 @@ const captureRawBody = (
     (req as http.IncomingMessage & { rawBody?: Buffer }).rawBody = buf;
   }
 };
+
+registerMcpActionLogIngestRoute(app);
 
 app.use(bodyParser.urlencoded({ extended: true, verify: captureRawBody }));
 app.use(bodyParser.json({ limit: "10mb", verify: captureRawBody }));
@@ -200,6 +203,17 @@ app.use(
       res.status(429).json({
         success: false,
         error: err.message,
+      });
+    } else if (
+      typeof err === "object" &&
+      err !== null &&
+      "status" in err &&
+      (err as { status?: number }).status === 413
+    ) {
+      res.status(413).json({
+        success: false,
+        code: "PAYLOAD_TOO_LARGE",
+        error: "Request body is too large",
       });
     } else if (err instanceof ZodError) {
       // In zod v4, ZodError uses 'issues' instead of 'errors'

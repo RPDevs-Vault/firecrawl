@@ -1,6 +1,5 @@
 import { Request, Response } from "express";
 import { db, dbRr } from "../../db/connection";
-import { config } from "../../config";
 import { ErrorResponse, RequestWithAuth } from "./types";
 import {
   listMcpActionLogs,
@@ -10,20 +9,10 @@ import {
 
 type InternalRequest = Request & { body: Record<string, unknown> };
 
-function bearerToken(value: string | string[] | undefined) {
-  const header = Array.isArray(value) ? value[0] : value;
-  return header?.startsWith("Bearer ") ? header.slice("Bearer ".length) : null;
-}
-
 export async function ingestMcpActionLogController(
   req: InternalRequest,
   res: Response,
 ) {
-  const secret = config.MCP_ACTION_LOG_SECRET;
-  if (!secret || bearerToken(req.headers.authorization) !== secret) {
-    return res.status(401).json({ success: false, error: "Unauthorized" });
-  }
-
   try {
     const input = normalizeMcpActionLogInput(req.body ?? {});
     const row = await recordMcpActionLog(db, input);
