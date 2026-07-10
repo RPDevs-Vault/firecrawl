@@ -1,6 +1,6 @@
 import undici from "undici";
 import { config } from "../../config";
-import { createHmac } from "crypto";
+import { createHmac, randomUUID } from "crypto";
 import { logger as _logger, logger } from "../../lib/logger";
 import { assertPublicHttpUrl } from "../../lib/url-safety";
 import { getSecureDispatcherNoCookies } from "../../scraper/scrapeURL/engines/utils/safeFetch";
@@ -14,7 +14,6 @@ import { redisEvictConnection } from "../redis";
 import { db } from "../../db/connection";
 import * as schema from "../../db/schema";
 import { webhookQueue } from "./queue";
-import { randomUUID } from "crypto";
 
 const WEBHOOK_INSERT_QUEUE_KEY = "webhook-insert-queue";
 const WEBHOOK_INSERT_BATCH_SIZE = 1000;
@@ -209,6 +208,18 @@ export class WebhookSender {
         webhookUrl: this.config.url,
       });
 
+      let errorMessage: string | undefined;
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === "string") {
+        errorMessage = error;
+      }
+
+      const statusCode =
+        typeof (error as any)?.status === "number"
+          ? (error as any).status
+          : undefined;
+
       await logWebhook({
         success: false,
         teamId: this.context.teamId,
@@ -216,16 +227,8 @@ export class WebhookSender {
         scrapeId,
         url: this.config.url,
         event: payload.type,
-        error:
-          error instanceof Error
-            ? error.message
-            : typeof error === "string"
-              ? error
-              : undefined,
-        statusCode:
-          typeof (error as any)?.status === "number"
-            ? (error as any).status
-            : undefined,
+        error: errorMessage,
+        statusCode,
       });
 
       throw error;

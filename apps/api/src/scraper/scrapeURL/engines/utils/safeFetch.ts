@@ -82,13 +82,19 @@ const secureDispatcherNoCookies = makeSecureDispatcherNoCookies(false);
 const secureDispatcherNoCookiesSkipTlsVerification =
   makeSecureDispatcherNoCookies(true);
 
-export const getSecureDispatcher = (skipTlsVerification: boolean = false) =>
-  skipTlsVerification ? secureDispatcherSkipTlsVerification : secureDispatcher;
+export function getSecureDispatcher(
+  skipTlsVerification = false,
+): undici.Dispatcher {
+  return skipTlsVerification
+    ? secureDispatcherSkipTlsVerification
+    : secureDispatcher;
+}
 
 // Use this for webhook delivery to avoid sending empty cookie headers
-export const getSecureDispatcherNoCookies = (
-  skipTlsVerification: boolean = false,
-) =>
-  skipTlsVerification
+export function getSecureDispatcherNoCookies(
+  skipTlsVerification = false,
+): undici.Dispatcher {
+  return skipTlsVerification
     ? secureDispatcherNoCookiesSkipTlsVerification
     : secureDispatcherNoCookies;
+}
